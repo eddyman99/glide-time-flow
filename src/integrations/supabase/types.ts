@@ -367,6 +367,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      invite_user_to_team: {
+        Args: { _email: string; _team_id: string }
+        Returns: Json
+      }
       is_team_member: {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
