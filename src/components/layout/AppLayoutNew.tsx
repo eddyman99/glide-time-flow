@@ -1,32 +1,55 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { 
   Calendar, CheckSquare, FolderKanban, ChevronDown, ChevronRight,
-  Plus, Settings, Search, Diamond, LayoutDashboard, LogOut, Users, Loader2
+  Plus, Diamond, LayoutDashboard, LogOut, Users, Loader2, UserPlus
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSupabaseData, DbTask } from '@/hooks/useSupabaseData';
+import { useSampleData } from '@/hooks/useSampleData';
 import { WeekCalendarNew } from '@/components/calendar/WeekCalendarNew';
 import { ProjectsPageNew } from '@/components/projects/ProjectsPageNew';
 import { TaskListNew } from '@/components/tasks/TaskListNew';
 import { EditTaskModal } from '@/components/tasks/EditTaskModal';
 import { DashboardNew } from '@/components/dashboard/DashboardNew';
 import { CreateTaskModalNew } from '@/components/tasks/CreateTaskModalNew';
+import { CreateTeamModal } from '@/components/teams/CreateTeamModal';
+import { InviteTeamMemberModal } from '@/components/teams/InviteTeamMemberModal';
 
 export function AppLayoutNew() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const { 
     tasks, projects, workspaces, labels, profiles, teams, loading,
-    createTask, updateTask, deleteTask, createWorkspace, createProject 
+    createTask, updateTask, deleteTask, createWorkspace, createProject, createTeam, inviteToTeam, refetch
   } = useSupabaseData();
+  const { seedSampleData } = useSampleData();
 
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<string[]>([]);
+  const [expandedTeams, setExpandedTeams] = useState(true);
   const [editingTask, setEditingTask] = useState<DbTask | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createTeamModalOpen, setCreateTeamModalOpen] = useState(false);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [selectedTeamForInvite, setSelectedTeamForInvite] = useState<{ id: string; name: string } | null>(null);
+  const [hasSeededData, setHasSeededData] = useState(false);
+
+  // Seed sample data for new users
+  useEffect(() => {
+    const seedDataIfNeeded = async () => {
+      if (user && !loading && !hasSeededData && tasks.length === 0 && projects.length === 0) {
+        const seeded = await seedSampleData(user.id);
+        if (seeded) {
+          setHasSeededData(true);
+          refetch();
+        }
+      }
+    };
+    seedDataIfNeeded();
+  }, [user, loading, tasks.length, projects.length, hasSeededData, seedSampleData, refetch]);
 
   const toggleWorkspace = (id: string) => {
     setExpandedWorkspaces((prev) =>
@@ -37,6 +60,19 @@ export function AppLayoutNew() {
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
+  };
+
+  const handleInviteToTeam = (team: { id: string; name: string }) => {
+    setSelectedTeamForInvite(team);
+    setInviteModalOpen(true);
+  };
+
+  const handleCreateTeam = async (team: { name: string; description?: string; color?: string }) => {
+    const result = await createTeam(team);
+    if (result) {
+      refetch();
+    }
+    return result;
   };
 
   const currentProfile = profiles.find(p => p.user_id === user?.id);
@@ -94,6 +130,76 @@ export function AppLayoutNew() {
             ))}
           </div>
 
+          {/* Teams Section */}
+          <div className="mt-6">
+            <div className="flex items-center justify-between px-3 py-2">
+              <button
+                onClick={() => setExpandedTeams(!expandedTeams)}
+                className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Users className="h-3 w-3" />
+                Teams
+                {expandedTeams ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronRight className="h-3 w-3" />
+                )}
+              </button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => setCreateTeamModalOpen(true)}
+              >
+                <Plus className="h-3 w-3 text-muted-foreground" />
+              </Button>
+            </div>
+            {expandedTeams && (
+              <div className="mt-1 space-y-1">
+                {teams.length === 0 ? (
+                  <div className="px-3 py-4 text-center">
+                    <p className="text-xs text-muted-foreground mb-2">No teams yet</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => setCreateTeamModalOpen(true)}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Create Team
+                    </Button>
+                  </div>
+                ) : (
+                  teams.map((team) => (
+                    <div
+                      key={team.id}
+                      className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent/50 group"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div
+                          className="h-5 w-5 rounded flex items-center justify-center text-white text-xs font-bold"
+                          style={{ backgroundColor: team.color || '#6366f1' }}
+                        >
+                          {team.name.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="truncate">{team.name}</span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => handleInviteToTeam({ id: team.id, name: team.name })}
+                      >
+                        <UserPlus className="h-3 w-3 text-muted-foreground" />
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Workspaces Section */}
           <div className="mt-6">
             <div className="flex items-center justify-between px-3 py-2">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -238,6 +344,21 @@ export function AppLayoutNew() {
         profiles={profiles}
         onCreateTask={createTask}
       />
+
+      <CreateTeamModal
+        open={createTeamModalOpen}
+        onOpenChange={setCreateTeamModalOpen}
+        onCreateTeam={handleCreateTeam}
+      />
+
+      {selectedTeamForInvite && (
+        <InviteTeamMemberModal
+          open={inviteModalOpen}
+          onOpenChange={setInviteModalOpen}
+          teamName={selectedTeamForInvite.name}
+          onInvite={(email) => inviteToTeam(selectedTeamForInvite.id, email)}
+        />
+      )}
     </div>
   );
 }
