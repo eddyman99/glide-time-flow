@@ -359,6 +359,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_team_with_owner: {
+        Args: { _color?: string; _description?: string; _name: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

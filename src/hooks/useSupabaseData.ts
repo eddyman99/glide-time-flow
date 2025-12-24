@@ -214,27 +214,24 @@ export function useSupabaseData() {
     return data;
   };
 
-  // Team operations
+  // Team operations - using atomic database function
   const createTeam = async (team: { name: string; description?: string; color?: string }) => {
     if (!user) return null;
     
-    const { data, error } = await supabase
-      .from('teams')
-      .insert({ ...team, created_by: user.id })
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc('create_team_with_owner', {
+      _name: team.name,
+      _description: team.description || null,
+      _color: team.color || '#6366f1',
+    });
 
     if (error) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
       return null;
     }
 
-    // Add creator as owner
-    await supabase.from('team_members').insert({ team_id: data.id, user_id: user.id });
-    await supabase.from('user_roles').insert({ team_id: data.id, user_id: user.id, role: 'owner' });
-
-    setTeams((prev) => [data, ...prev]);
-    return data;
+    const teamData = data as unknown as DbTeam;
+    setTeams((prev) => [teamData, ...prev]);
+    return teamData;
   };
 
   const inviteToTeam = async (teamId: string, email: string) => {
