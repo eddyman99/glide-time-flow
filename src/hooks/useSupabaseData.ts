@@ -238,37 +238,27 @@ export function useSupabaseData() {
   };
 
   const inviteToTeam = async (teamId: string, email: string) => {
-    // Find user by email
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('user_id')
-      .eq('email', email)
-      .maybeSingle();
-
-    if (!profile) {
-      toast({ title: 'User not found', description: 'No user with that email exists.', variant: 'destructive' });
-      return false;
-    }
-
-    const { error } = await supabase
-      .from('team_members')
-      .insert({ team_id: teamId, user_id: profile.user_id });
+    // Use secure server-side function to prevent email enumeration
+    const { data, error } = await supabase.rpc('invite_user_to_team', {
+      _team_id: teamId,
+      _email: email,
+    });
 
     if (error) {
-      if (error.message.includes('duplicate')) {
-        toast({ title: 'Already a member', description: 'This user is already in the team.' });
-      } else {
-        toast({ title: 'Error', description: error.message, variant: 'destructive' });
-      }
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
       return false;
     }
 
-    // Add default role
-    await supabase.from('user_roles').insert({ team_id: teamId, user_id: profile.user_id, role: 'member' });
-
-    toast({ title: 'Invited!', description: `${email} has been added to the team.` });
-    fetchData();
-    return true;
+    const result = data as { success: boolean; message: string };
+    
+    if (result.success) {
+      toast({ title: 'Success', description: result.message });
+      fetchData();
+      return true;
+    } else {
+      toast({ title: 'Info', description: result.message });
+      return false;
+    }
   };
 
   // Label operations
